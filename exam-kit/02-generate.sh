@@ -110,6 +110,10 @@ mandatory_tags    = ["Business Unit", "Cost Center"]
 allowed_locations = ["centralindia", "southindia", "westindia"]
 EOF
 
+cat > terraform/policy/outputs.tf <<'PEOF'
+output "subscription_id" { value = data.azurerm_subscription.current.subscription_id }
+PEOF
+
 # ===============================================================
 # 2. NETWORK
 # ===============================================================
