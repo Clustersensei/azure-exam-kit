@@ -332,6 +332,13 @@ resource "azurerm_kubernetes_cluster" "main" {
     vm_size        = "Standard_D2s_v5"   # D2s_v3 is often quota-blocked
     vnet_subnet_id = data.terraform_remote_state.network.outputs.aks_subnet_id
     tags           = local.tags          # REQUIRED: cluster tags do NOT reach the MC_* VMSS
+
+    # Azure fills these in; declaring them stops a perpetual "1 to change" diff
+    upgrade_settings {
+      drain_timeout_in_minutes      = 0
+      max_surge                     = "10%"
+      node_soak_duration_in_minutes = 0
+    }
   }
 
   identity { type = "SystemAssigned" }
