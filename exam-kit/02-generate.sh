@@ -92,7 +92,7 @@ resource "azurerm_subscription_policy_assignment" "deny_nic_public_ip" {
 
 resource "azurerm_subscription_policy_assignment" "allowed_locations" {
   name                 = "allowed-locations"
-  display_name         = "Allowed locations"
+  display_name         = "Allowed locations - India regions"
   subscription_id      = data.azurerm_subscription.current.id
   policy_definition_id = "/providers/Microsoft.Authorization/policyDefinitions/e56962a6-4747-49cd-b67b-bf8b01975c4c"
   parameters           = jsonencode({ listOfAllowedLocations = { value = var.allowed_locations } })
@@ -319,7 +319,7 @@ resource "azurerm_kubernetes_cluster" "main" {
   name                = "__AKS__"
   location            = local.location
   resource_group_name = local.rg_name
-  dns_prefix          = "__P__-aks"
+  dns_prefix          = "aks-__P__"
   sku_tier            = "Free"
 
   private_cluster_enabled = true
