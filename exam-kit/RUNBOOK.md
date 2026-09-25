@@ -410,3 +410,49 @@ Want `{"statusCode":"200","statusMessage":"Document Found","data":[...]}`.
 - Get the real error from the right place: browser DevTools for frontend,
   `kubectl logs` for AKS, **`az container logs`** for ACI (it is not Kubernetes),
   `kubectl describe svc` events for a pending LoadBalancer.
+
+---
+
+## Phase 11 — Handover & cleanup (5 min)
+
+Run only once everything works. The VM should end up holding your code and nothing
+else — no helper scripts, no downloaded installers, no secrets in shell history.
+
+```bash
+source vars.env && source ~/spn.env
+bash 05-handover.sh                 # DRY RUN — prints, deletes nothing
+CONFIRM=yes bash 05-handover.sh     # actually removes
+```
+
+It does three things:
+
+**Writes `~/CREDENTIALS.md`** — the task deliverable. Every URL, resource name,
+identity and "how to read this secret" command, `chmod 600` and gitignored. It
+deliberately contains **no passwords**, only the `az keyvault secret show` command
+that retrieves each one. Key Vault is the source of truth; a document with a password
+in it is a second place to leak from.
+
+**Audits the repo** for anything that should never be tracked — `spn.env`, `*.tfstate`,
+`*.pem`, `CREDENTIALS.md`, secret-shaped strings, and leftover `__PLACEHOLDER__`s.
+
+**Removes scratch** — `/tmp/*.sh` helpers, `install-*.sh`, downloaded tarballs, cloned
+app sources, and secret-bearing lines from `~/.bash_history`.
+
+### Decide yourself (not auto-removed)
+
+| | |
+|---|---|
+| `~/kit` | the runbook and crib sheet. Delete it if the VM is being handed in and marked |
+| `~/spn.env` | **keep** while you might still re-apply. Delete only after rotating: `az ad sp credential reset --id $ARM_CLIENT_ID` |
+| `~/.terraform.d/plugin-cache` | ~250 MB, safe to delete, costs a re-download |
+
+### Also clean the jump host
+Images were built there, so that is where the disk is full:
+```bash
+az vm run-command invoke -g $WORK_RG -n $VM --command-id RunShellScript \
+  --scripts 'docker image prune -af; docker builder prune -af; df -h /'
+```
+
+### What must remain
+`~/work` (the code), `~/CREDENTIALS.md`, and a working deployment. Re-confirm with
+`bash 04-verify.sh` **after** cleaning — prove you removed nothing load-bearing.
