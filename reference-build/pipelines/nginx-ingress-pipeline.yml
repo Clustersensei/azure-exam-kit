@@ -29,7 +29,7 @@ steps:
         --namespace ingress-nginx \
         --create-namespace \
         --set controller.replicaCount=1 \
-        --set controller.service.annotations."service\.beta\.kubernetes\.io/azure-load-balancer-health-probe-request-path"=/healthz
+        --set controller.service.annotations."service\.beta\.kubernetes\.io/azure-load-balancer-health-probe-request-path"=/to-do
 
       echo "waiting for public IP..."
       for i in $(seq 1 30); do

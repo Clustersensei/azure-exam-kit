@@ -24,10 +24,11 @@ substituted for you. Using it removes a whole class of "I renamed nine of the te
 places" errors. Use this directory when you want to read the code, diff against it, or
 when the generator is not behaving.
 
-## Two known bugs in this code
+## Three known bugs in this code
 
-Both were found by planning the generator's output against this build's live state.
-**The generator fixes them; this directory does not.**
+The first two were found by planning the generator's output against this build's live
+state; the third by diffing the generated pipelines against these. **The generator
+fixes all three.**
 
 **1. The private DNS zone and its VNet link have no tags.**
 They were created before the policy module was applied, so the tag policy never
@@ -58,6 +59,27 @@ default_node_pool {
     node_soak_duration_in_minutes = 0
   }
 }
+```
+
+**3. The nginx pipeline set the health probe to `/healthz`. FIXED in this copy.**
+The probe path was corrected live with `kubectl annotate` and never backported, so the
+committed pipeline still said `/healthz`. nginx serves `/healthz` on port **10254**, not
+on 80 — on the NodePort it returns 404, the Azure LB marks the only node unhealthy, and
+**every request is dropped**, while a direct NodePort curl keeps returning 200.
+
+This was the most dangerous of the three: re-running an innocuous-looking pipeline would
+have silently broken a working cluster. The line now reads:
+
+```
+--set controller.service.annotations."service\.beta\.kubernetes\.io/azure-load-balancer-health-probe-request-path"=/to-do
+```
+
+Any path returning 200 on the NodePort works. Verify what Azure actually applied — the
+annotation alone is not proof:
+
+```bash
+az network lb probe list -g <MC_* rg> --lb-name kubernetes \
+  --query "[].{proto:protocol, port:port, path:requestPath}" -o table
 ```
 
 ---
