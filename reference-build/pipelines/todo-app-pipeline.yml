@@ -1,0 +1,41 @@
+trigger: none
+
+pool:
+  name: lne-vnet-agents
+
+variables:
+  acrName: acrlnehpvmb5
+  imageName: todo
+  imageTag: $(Build.BuildId)
+  srcDir: $(Build.SourcesDirectory)/todo-src
+
+steps:
+- checkout: none
+
+- script: |
+    rm -rf $(srcDir)
+    git clone https://github.com/a7medayman6/Todo-List-Dockerized-Flask-WebApp $(srcDir)
+  displayName: 'Clone todo source'
+
+- script: |
+    cd $(srcDir)
+    sed -i 's|action="/add"|action="/to-do/add"|g' templates/base.html
+    sed -i 's|/update/|/to-do/update/|g' templates/base.html
+    sed -i 's|/delete/|/to-do/delete/|g' templates/base.html
+    sed -i 's|url_for("index")|"/to-do/"|g' app.py
+    echo "--- verify ---"
+    grep -n "to-do" templates/base.html app.py
+  displayName: 'Serve the app under /to-do'
+
+- task: AzureCLI@2
+  displayName: 'Build and push to ACR'
+  inputs:
+    azureSubscription: 'lne-azure-connection'
+    scriptType: bash
+    scriptLocation: inlineScript
+    workingDirectory: $(srcDir)
+    inlineScript: |
+      az acr login --name $(acrName)
+      docker build -t $(acrName).azurecr.io/$(imageName):$(imageTag) .
+      docker push $(acrName).azurecr.io/$(imageName):$(imageTag)
+      echo "PUSHED: $(acrName).azurecr.io/$(imageName):$(imageTag)"

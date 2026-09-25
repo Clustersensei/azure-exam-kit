@@ -1,0 +1,41 @@
+trigger: none
+
+pool:
+  name: lne-vnet-agents
+
+variables:
+  acrName: acrlnehpvmb5
+  imageName: frontend
+  imageTag: $(Build.BuildId)
+  srcDir: $(Build.SourcesDirectory)/frontend-src
+
+steps:
+- checkout: none
+
+- script: |
+    rm -rf $(srcDir)
+    git clone https://github.com/cubastion-training/sample-react-app.git $(srcDir)
+  displayName: 'Clone frontend source'
+
+- script: |
+    cd $(srcDir)
+    sed -i '/^RUN npm run build/i ENV PUBLIC_URL=/emp' Dockerfile
+    sed -i 's|src="env.js"|src="%PUBLIC_URL%/env.js"|' public/index.html
+    sed -i 's|href="favicon.ico"|href="%PUBLIC_URL%/favicon.ico"|' public/index.html
+    sed -i 's|<Router>|<Router basename={process.env.PUBLIC_URL}>|' src/App.js
+    echo "--- verify ---"
+    grep -n "PUBLIC_URL" Dockerfile public/index.html src/App.js
+  displayName: 'Serve the app under /emp'
+
+- task: AzureCLI@2
+  displayName: 'Build and push to ACR'
+  inputs:
+    azureSubscription: 'lne-azure-connection'
+    scriptType: bash
+    scriptLocation: inlineScript
+    workingDirectory: $(srcDir)
+    inlineScript: |
+      az acr login --name $(acrName)
+      docker build -t $(acrName).azurecr.io/$(imageName):$(imageTag) .
+      docker push $(acrName).azurecr.io/$(imageName):$(imageTag)
+      echo "PUSHED: $(acrName).azurecr.io/$(imageName):$(imageTag)"

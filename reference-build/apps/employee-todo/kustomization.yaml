@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- namespace.yaml
+- frontend-deployment.yaml
+- frontend-service.yaml
+- todo-deployment.yaml
+- todo-service.yaml
+- backend-service.yaml
+- backend-endpoints.yaml
+- ingress-frontend-todo.yaml
+- ingress-backend.yaml

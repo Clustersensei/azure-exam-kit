@@ -1,0 +1,56 @@
+trigger: none
+
+pool:
+  name: lne-vnet-agents
+
+variables:
+  acrName: acrlnehpvmb5
+  imageName: backend
+  imageTag: $(Build.BuildId)
+  srcDir: $(Build.SourcesDirectory)/backend-src
+
+steps:
+- checkout: none
+
+- script: |
+    rm -rf $(srcDir)
+    git clone https://github.com/cubastion-training/sample-node-app.git $(srcDir)
+  displayName: 'Clone backend source'
+
+- script: |
+    cd $(srcDir)
+    npm install pg pg-hstore --save
+  displayName: 'Add Postgres driver (app ships with MySQL)'
+
+- script: |
+    cd $(srcDir)
+    sed -i '/dialect: process.env.DBDIALECT/a\    dialectOptions: { ssl: { require: true, rejectUnauthorized: false } },' config/dbConfig.js
+    grep -A2 "dialect:" config/dbConfig.js
+  displayName: 'Enable SSL (Azure Postgres requires it)'
+
+- script: |
+    cd $(srcDir)
+    cat > .sequelizerc << 'RCEOF'
+    const path = require('path');
+    module.exports = {
+      'config': path.resolve('config', 'dbConfig.js'),
+      'models-path': path.resolve('models'),
+      'seeders-path': path.resolve('seeders'),
+      'migrations-path': path.resolve('migrations')
+    };
+    RCEOF
+    cat .sequelizerc
+  displayName: 'Point sequelize-cli at the real DB config'
+
+- task: AzureCLI@2
+  displayName: 'Build and push to ACR'
+  inputs:
+    azureSubscription: 'lne-azure-connection'
+    scriptType: bash
+    scriptLocation: inlineScript
+    workingDirectory: $(srcDir)
+    inlineScript: |
+      az acr login --name $(acrName)
+      docker build -t $(acrName).azurecr.io/$(imageName):$(imageTag) .
+      docker push $(acrName).azurecr.io/$(imageName):$(imageTag)
+      echo "PUSHED: $(acrName).azurecr.io/$(imageName):$(imageTag)"

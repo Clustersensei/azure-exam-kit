@@ -1,0 +1,45 @@
+trigger: none
+
+pool:
+  name: lne-vnet-agents
+
+steps:
+- checkout: none
+
+- task: AzureCLI@2
+  displayName: 'Install nginx ingress controller'
+  inputs:
+    azureSubscription: 'lne-azure-connection'
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      set -e
+      export HOME=/root
+      export KUBECONFIG=/root/.kube/config
+
+      az aks get-credentials \
+        -g rg-lne-employee-todo \
+        -n aks-lne-employee-todo \
+        --overwrite-existing
+
+      helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+      helm repo update
+
+      helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+        --namespace ingress-nginx \
+        --create-namespace \
+        --set controller.replicaCount=1 \
+        --set controller.service.annotations."service\.beta\.kubernetes\.io/azure-load-balancer-health-probe-request-path"=/healthz
+
+      echo "waiting for public IP..."
+      for i in $(seq 1 30); do
+        IP=$(kubectl get svc ingress-nginx-controller -n ingress-nginx \
+             -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+        if [ -n "$IP" ]; then
+          echo "INGRESS_PUBLIC_IP=$IP"
+          break
+        fi
+        sleep 10
+      done
+
+      kubectl get svc -n ingress-nginx
