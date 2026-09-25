@@ -6,7 +6,7 @@ for m in policy network platform postgres jumphost aci; do
   printf "%-10s " "$m"
   cd "$GEN/terraform/$m" 2>/dev/null || { echo "MISSING"; continue; }
   terraform init -input=false >/dev/null 2>&1
-  OUT=$(terraform plan -input=false -lock=false 2>&1)
+  OUT=$(terraform plan -input=false -lock=false -no-color 2>&1)
   if   echo "$OUT" | grep -q "^No changes";            then echo "CLEAN"
   elif echo "$OUT" | grep -q "save these new output";  then echo "CLEAN (outputs only)"
   elif echo "$OUT" | grep -q "forces replacement";     then echo "*** REPLACEMENT ***"; echo "$OUT" | grep -B2 "forces replacement" | head -6
