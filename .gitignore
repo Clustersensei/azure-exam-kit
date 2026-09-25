@@ -1,0 +1,7 @@
+*.zip
+spn.env
+*.pem
+CREDENTIALS.md
+.terraform/
+*.tfstate
+*.tfstate.backup
