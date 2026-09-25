@@ -15,6 +15,41 @@ tmux new -s tf      # detach Ctrl+B D, reattach: tmux attach -t tf
 
 ---
 
+## Day-of quick start
+
+```bash
+# 1. get the kit
+git clone https://github.com/Clustersensei/azure-exam-kit.git ~/kit
+cd ~/kit/exam-kit && vi vars.env && source vars.env
+
+# 2. providers + quotas (async — start them first)
+bash -c 'for ns in Microsoft.ContainerService Microsoft.ContainerInstance \
+  Microsoft.ContainerRegistry Microsoft.DBforPostgreSQL Microsoft.KeyVault \
+  Microsoft.Network Microsoft.Storage Microsoft.Compute Microsoft.ManagedIdentity \
+  Microsoft.OperationalInsights Microsoft.PolicyInsights; do az provider register -n $ns; done'
+az network list-usages --location $LOC -o table | grep -i "Public IP"
+
+# 3. bootstrap + generate
+bash 01-bootstrap.sh          # then put TFSTATE_SA into vars.env
+source ~/spn.env
+git clone https://<org>@dev.azure.com/<org>/<project>/_git/<repo> ~/work
+REPO=~/work bash 02-generate.sh
+cd ~/work && git add -A && git commit -m infra && git push
+
+# 4. terraform, in order (tmux!)
+for m in policy network platform postgres jumphost; do
+  ( cd ~/work/terraform/$m && terraform init && terraform apply -auto-approve )
+done
+
+# 5. agent, pipelines, ingress, aci, flux  -> follow Phases 4-9
+```
+
+**Values you must carry forward as you learn them** (put each into `vars.env`, then
+re-run `02-generate.sh`): `TFSTATE_SA` → `ACR` / `KV` → image tags → `INGRESS_IP` →
+`ACI_IP`.
+
+---
+
 ## Phase -1 — Fresh subscription pre-flight (15 min)
 
 Only needed when you are handed a bare subscription. Skip what is already true.
@@ -98,8 +133,24 @@ fall back to `curl -L https://aka.ms/InstallAzureCli | bash`.
 | 0.1 `[UI]` | Create ADO **organization** and **project** |
 | 0.2 `[UI]` | Repos → clone URL. Generate a **PAT**: Agent Pools *Read & manage* + Code *Read & write*. Copy it — shown once |
 | 0.3 | `az login --use-device-code` on the exam VM |
-| 0.4 | Clone this kit + your repo onto the VM |
-| 0.5 | **Edit `vars.env`** — org, project, prefix. Then `source vars.env` |
+| 0.4 | Clone this kit onto the VM (see below) |
+| 0.5 | Clone your **empty ADO repo** — this is where the generated code goes |
+| 0.6 | **Edit `vars.env`** — org, project, prefix. Then `source vars.env` |
+
+```bash
+# the kit (this repo — private, needs a GitHub PAT as the password)
+git clone https://github.com/Clustersensei/azure-exam-kit.git ~/kit
+
+# your exam ADO repo (empty; 02-generate.sh fills it)
+git clone https://<org>@dev.azure.com/<org>/<project>/_git/<repo> ~/work
+
+cd ~/kit/exam-kit
+vi vars.env          # ADO_ORG, ADO_PROJECT, ADO_REPO, P, LOC
+source vars.env
+```
+
+Keep them separate: `~/kit` is read-only reference, `~/work` is what you commit and
+what Flux watches.
 
 If `az login` is blocked by `AADSTS530035`, disable Security Defaults:
 Entra ID → Properties → Manage security defaults → Disabled.
@@ -131,7 +182,7 @@ policy assignments and role assignments. Least-privilege alternative is
 
 ```bash
 source vars.env
-REPO=~/<your-repo-dir> bash 02-generate.sh
+REPO=~/work bash 02-generate.sh
 ```
 
 Writes all six Terraform modules, four pipelines, nine K8s manifests and `.gitignore`,
@@ -139,7 +190,7 @@ substituted from `vars.env`. **Idempotent — re-run it whenever you learn a new
 (ACR name, image tags, ingress IP, ACI IP) after updating `vars.env`.
 
 ```bash
-cd ~/<your-repo-dir>
+cd ~/work
 git add -A && git commit -m "infra" && git push
 ```
 
@@ -266,7 +317,7 @@ Re-generate now that `ACR`, tags, `INGRESS_IP` and `ACI_IP` are all known:
 
 ```bash
 source vars.env
-REPO=~/<your-repo-dir> bash 02-generate.sh
+REPO=~/work bash 02-generate.sh
 grep -rn '__' apps/ || echo "no placeholders left"
 git add -A && git commit -m "manifests" && git push
 ```
@@ -283,7 +334,7 @@ cat > /tmp/flux.sh <<EOF
 export HOME=/root; export KUBECONFIG=/root/.kube/config
 flux bootstrap git \
   --url=https://dev.azure.com/$ADO_ORG/$ADO_PROJECT/_git/$ADO_REPO \
-  --branch=\$(git -C ~/<repo> rev-parse --abbrev-ref HEAD) \
+  --branch=\$(git -C ~/work rev-parse --abbrev-ref HEAD) \
   --username=git --password="$ADO_PAT" --token-auth=true \
   --path=clusters/aks-$P
 EOF
