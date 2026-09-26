@@ -5,3 +5,6 @@ CREDENTIALS.md
 .terraform/
 *.tfstate
 *.tfstate.backup
+
+# test scratch: a filled-in vars file for a specific past build
+vars.live.env
